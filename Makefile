@@ -6,7 +6,7 @@ endif
 
 BUILD_META=-multiarch-build$(shell date +%Y%m%d)
 ORG ?= rancher
-TAG ?= v3.19.2$(BUILD_META)
+TAG ?= v3.20.0$(BUILD_META)
 UBI_IMAGE ?= centos:7
 GOLANG_VERSION ?= v1.16.6b7-multiarch
 K3S_ROOT_VERSION ?= v0.9.1
