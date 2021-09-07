@@ -2,10 +2,10 @@ ARG ARCH
 ARG TAG
 ARG UBI_IMAGE
 ARG GO_IMAGE
-ARG CNI_IMAGE
+ARG CNI_PLUGINS_IMAGE
 
 FROM ${UBI_IMAGE} as ubi
-FROM ${CNI_IMAGE} as cni
+FROM ${CNI_PLUGINS_IMAGE} as cni
 FROM ${GO_IMAGE} as builder
 # setup required packages
 RUN set -x \
