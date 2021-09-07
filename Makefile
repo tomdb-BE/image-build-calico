@@ -21,7 +21,7 @@ CNI_PLUGINS_VERSION ?= v1.0.0
 image-build:
 	docker build \
 		--build-arg ARCH=$(ARCH) \
-                --build-arg CNI_PLUGINS_IMAGE=$(ORG)/hardened-calico:$(CNI_PLUGINS_VERSION)$(BUILD_META) \
+                --build-arg CNI_PLUGINS_IMAGE=$(ORG)/hardened-cni-plugins:$(CNI_PLUGINS_VERSION)$(BUILD_META) \
 		--build-arg TAG=$(TAG:$(BUILD_META)=) \
                 --build-arg GO_IMAGE=$(ORG)/hardened-build-base:$(GOLANG_VERSION) \
                 --build-arg UBI_IMAGE=$(UBI_IMAGE) \
