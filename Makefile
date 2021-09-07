@@ -4,27 +4,28 @@ ifeq ($(ARCH),)
 ARCH=$(shell go env GOARCH)
 endif
 
-BUILD_META=-build$(shell date +%Y%m%d)
+BUILD_META=-multiarch-build$(shell date +%Y%m%d)
 ORG ?= rancher
-TAG ?= v3.19.1$(BUILD_META)
-
-ifneq ($(DRONE_TAG),)
-TAG := $(DRONE_TAG)
-endif
+TAG ?= v3.19.2$(BUILD_META)
+UBI_IMAGE ?= centos:7
+GOLANG_VERSION ?= v1.16.6b7-multiarch
+K3S_ROOT_VERSION ?= v0.9.1
 
 ifeq (,$(filter %$(BUILD_META),$(TAG)))
 $(error TAG needs to end with build metadata: $(BUILD_META))
 endif
 
-CNI_PLUGINS_VERSION ?= v0.8.7
+CNI_PLUGINS_VERSION ?= v1.0.0
 
 .PHONY: image-build
 image-build:
 	docker build \
-		--pull \
 		--build-arg ARCH=$(ARCH) \
-		--build-arg CNI_PLUGINS_VERSION=$(CNI_PLUGINS_VERSION) \
+                --build-arg CNI_PLUGINS_IMAGE=$(ORG)/hardened-calico:$(CNI_PLUGINS_VERSION)$(BUILD_META) \
 		--build-arg TAG=$(TAG:$(BUILD_META)=) \
+                --build-arg GO_IMAGE=$(ORG)/hardened-build-base:$(GOLANG_VERSION) \
+                --build-arg UBI_IMAGE=$(UBI_IMAGE) \
+		--build-arg K3S_ROOT_VERSION=$(K3S_ROOT_VERSION) \
 		--tag $(ORG)/hardened-calico:$(TAG) \
 		--tag $(ORG)/hardened-calico:$(TAG)-$(ARCH) \
 	.
