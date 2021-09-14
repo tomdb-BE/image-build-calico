@@ -132,8 +132,7 @@ COPY --from=runit /opt/local/command/           /usr/sbin/
 
 
 FROM ubi
-RUN yum update -y                              && \
-    yum install -y hostname                       \
+RUN yum install -y hostname                       \
     libpcap libmnl libnetfilter_conntrack         \ 
     libnetfilter_cthelper libnetfilter_cttimeout  \
     libnetfilter_queue ipset kmod iputils iproute \
