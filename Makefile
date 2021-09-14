@@ -4,7 +4,7 @@ ifeq ($(ARCH),)
 ARCH=$(shell go env GOARCH)
 endif
 
-BUILD_META=-multiarch-build$(shell date +%Y%m%d)
+BUILD_META ?= -multiarch-build$(shell date +%Y%m%d)
 ORG ?= rancher
 TAG ?= v3.20.0$(BUILD_META)
 UBI_IMAGE ?= centos:7
