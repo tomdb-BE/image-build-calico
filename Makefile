@@ -6,16 +6,20 @@ endif
 
 BUILD_META ?= -multiarch-build$(shell date +%Y%m%d)
 ORG ?= rancher
-TAG ?= v3.19.2$(BUILD_META)
 UBI_IMAGE ?= centos:7
-GOLANG_VERSION ?= v1.16.6b7-multiarch
+GOLANG_VERSION ?= v1.16.7b7-multiarch
 K3S_ROOT_VERSION ?= v0.9.1
+TAG ?= v3.20.1$(BUILD_META)
+
+ifneq ($(DRONE_TAG),)
+TAG := $(DRONE_TAG)
+endif
 
 ifeq (,$(filter %$(BUILD_META),$(TAG)))
 $(error TAG needs to end with build metadata: $(BUILD_META))
 endif
 
-CNI_PLUGINS_VERSION ?= v1.0.0
+CNI_PLUGINS_VERSION ?= v1.0.1
 
 .PHONY: image-build
 image-build:
