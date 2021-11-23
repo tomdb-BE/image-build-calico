@@ -105,11 +105,12 @@ RUN install -D -s bin/flexvoldriver /usr/local/bin/flexvol/flexvoldriver
 # We need to build runit because there aren't any rpms for it in CentOS or ubi repositories.
 FROM centos:8 AS runit-amd64
 FROM centos:8 AS runit-arm64
-FROM clefos:8 AS runit-s390x
+FROM clefos:7 AS runit-s390x
 FROM runit-${ARCH} AS runit
 ARG RUNIT_VER=2.1.2
 # Install build dependencies and security updates.
-RUN yum install -y rpm-build yum-utils make && \
+RUN yum install -y rpm-build yum-utils make dnf-plugins-core && \
+    yum config-manager --set-enabled PowerTools && \
     yum install -y wget glibc-static gcc    && \
     yum -y update-minimal --security --sec-severity=Important --sec-severity=Critical
 # runit is not available in ubi or CentOS repos so build it.
