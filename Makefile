@@ -7,7 +7,7 @@ endif
 BUILD_META ?= -multiarch-build$(shell date +%Y%m%d)
 ORG ?= rancher
 UBI_IMAGE ?= registry.access.redhat.com/ubi8/ubi-minimal:latest
-GOLANG_VERSION ?= v1.16.10b7-multiarch
+GOLANG_VERSION ?= v1.17.5b7-multiarch
 TAG ?= v3.20.2$(BUILD_META)
 
 K3S_ROOT_VERSION ?= v0.10.1
