@@ -1,8 +1,9 @@
 ARG ARCH="amd64"
-ARG TAG="v3.20.2"
-ARG UBI_IMAGE=registry.access.redhat.com/ubi8/ubi-minimal:latest
-ARG GO_IMAGE=rancher/hardened-build-base:v1.16.10b7
+ARG TAG="v3.21.2"
+ARG UBI_IMAGE=registry.access.redhat.com/ubi7/ubi-minimal:latest
+ARG GO_IMAGE=rancher/hardened-build-base:v1.17.3b7
 ARG CNI_IMAGE=rancher/hardened-cni-plugins:v0.9.1-build20211119
+ARG GO_BORING=goboring/golang:1.16.7b7
 
 FROM ${UBI_IMAGE} as ubi
 FROM ${CNI_IMAGE} as cni
@@ -16,7 +17,16 @@ RUN set -x \
     gcc \
     git \
     linux-headers \
-    make
+    make \
+    patch
+
+# Image for projectcalico/node. Because of libbpf-dev and libelf-dev dependencies we can't use Alpine. Not needed in s390x
+FROM ${GO_BORING} AS builder-amd64
+FROM builder AS builder-s390x
+FROM builder-${ARCH} AS calico-node-builder
+ARG ARCH
+RUN if [ "${ARCH}" = "amd64" ]; then apt -y update && apt -y upgrade && apt install -y file libbpf-dev gcc build-essential libelf-dev; fi
+COPY --from=builder /usr/local/go/bin/go-assert-boring.sh /usr/local/go/bin/go-assert-static.sh /usr/local/go/bin/go-build-static.sh /usr/local/go/bin/
 
 ### BEGIN K3S XTABLES ###
 FROM builder AS k3s_xtables
@@ -55,6 +65,9 @@ RUN git clone --depth=1 https://github.com/projectcalico/cni-plugin.git $GOPATH/
 WORKDIR $GOPATH/src/github.com/projectcalico/cni-plugin
 RUN git fetch --all --tags --prune
 RUN git checkout tags/${TAG} -b ${TAG}
+COPY dualStack-changes.patch .
+# Apply the patch only in versions v3.20 and v3.21. It is already part of v3.22
+RUN if [[ "${TAG}" =~ "v3.20" || "${TAG}" =~ "v3.21" ]]; then git apply dualStack-changes.patch; fi
 ENV GO_LDFLAGS="-linkmode=external -X main.VERSION=${TAG}"
 RUN go-build-static.sh -gcflags=-trimpath=${GOPATH}/src -o bin/calico ./cmd/calico
 RUN go-build-static.sh -gcflags=-trimpath=${GOPATH}/src -o bin/calico-ipam ./cmd/calico
@@ -67,22 +80,26 @@ RUN install -s bin/* /opt/cni/bin/
 
 
 ### BEGIN CALICO NODE ###
-FROM builder AS calico_node
+FROM calico-node-builder AS calico_node
 ARG ARCH
 ARG TAG
 RUN git clone --depth=1 https://github.com/projectcalico/node.git $GOPATH/src/github.com/projectcalico/node
 WORKDIR $GOPATH/src/github.com/projectcalico/node
 RUN git fetch --all --tags --prune
 RUN git checkout tags/${TAG} -b ${TAG}
+RUN mkdir -p bin/third-party && go mod download && cp -r `go list -mod=mod -m -f "{{.Dir}}" github.com/projectcalico/felix`/bpf-gpl/include/libbpf bin/third-party && chmod -R +w bin/third-party
+RUN if [ "${ARCH}" = "amd64" ]; then make -j 16 -C bin/third-party/libbpf/src BUILD_STATIC_ONLY=1; fi
 RUN GO_LDFLAGS="-linkmode=external \
     -X github.com/projectcalico/node/pkg/startup.VERSION=${TAG} \
     -X github.com/projectcalico/node/buildinfo.GitRevision=$(git rev-parse HEAD) \
     -X github.com/projectcalico/node/buildinfo.GitVersion=$(git describe --tags --always) \
-    -X github.com/projectcalico/node/buildinfo.BuildDate=$(date -u +%FT%T%z) \
-    " go-build-static.sh -gcflags=-trimpath=${GOPATH}/src -o bin/calico-node ./cmd/calico-node
-RUN go-assert-static.sh bin/*
-RUN if [ "${ARCH}" = "amd64" ]; then go-assert-boring.sh bin/*; fi
-RUN install -s bin/* /usr/local/bin
+    -X github.com/projectcalico/node/buildinfo.BuildDate=$(date -u +%FT%T%z)" \
+    CGO_LDFLAGS="-L/go/src/github.com/projectcalico/node/bin/third-party/libbpf/src -lbpf -lelf -lz" \
+    CGO_CFLAGS="-I/go/src/github.com/projectcalico/node/bin/third-party/libbpf/src" \
+    CGO_ENABLED=1 go build -ldflags "-linkmode=external -extldflags \"-static\"" -gcflags=-trimpath=${GOPATH}/src -o bin/calico-node ./cmd/calico-node
+RUN go-assert-static.sh bin/calico-node
+RUN go-assert-boring.sh bin/calico-node
+RUN install -s bin/calico-node /usr/local/bin
 ### END CALICO NODE #####
 
 

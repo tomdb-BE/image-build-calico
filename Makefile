@@ -7,10 +7,11 @@ endif
 BUILD_META ?= -multiarch-build$(shell date +%Y%m%d)
 ORG ?= rancher
 UBI_IMAGE ?= registry.access.redhat.com/ubi8/ubi-minimal:latest
-GOLANG_VERSION ?= v1.17.5b7-multiarch
-TAG ?= v3.20.2$(BUILD_META)
+GOLANG_VERSION ?= v1.17.6b7-multiarch
+GO_BORING ?= goboring/golang:1.17.6b7
+TAG ?= v3.22.0$(BUILD_META)
 
-K3S_ROOT_VERSION ?= v0.10.1
+K3S_ROOT_VERSION ?= v0.11.0
 CNI_PLUGINS_VERSION ?= v1.0.1
 
 ifneq ($(DRONE_TAG),)
@@ -30,6 +31,7 @@ image-build:
                 --build-arg GO_IMAGE=$(ORG)/hardened-build-base:$(GOLANG_VERSION) \
                 --build-arg UBI_IMAGE=$(UBI_IMAGE) \
 		--build-arg K3S_ROOT_VERSION=$(K3S_ROOT_VERSION) \
+                --build-arg GO_BORING=$(GO_BORING) \
 		--tag $(ORG)/hardened-calico:$(TAG) \
 		--tag $(ORG)/hardened-calico:$(TAG)-$(ARCH) \
 		.
