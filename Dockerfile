@@ -22,10 +22,16 @@ RUN set -x \
 
 # Image for projectcalico/calico/node. Because of libbpf-dev and libelf-dev dependencies we can't use Alpine. Not needed in s390x
 FROM ${GO_BORING} AS builder-amd64
+FROM ${GO_BORING} AS builder-arm64
 FROM builder AS builder-s390x
 FROM builder-${ARCH} AS calico-node-builder
 ARG ARCH
-RUN if [ "${ARCH}" = "amd64" ] || [ "${ARCH}" = "arm64" ]; then apt -y update && apt -y upgrade && apt install -y file libbpf-dev gcc build-essential libelf-dev libdwarf-dev; fi
+RUN if [ "${ARCH}" = "amd64" ] || [ "${ARCH}" = "arm64" ]; then apt -y update && apt -y upgrade && \
+    apt-get install -y --no-install-recommends                          \
+        gpg gpg-agent file libmnl-dev libc-dev iptables curl libelf-dev \
+        bash-completion binutils binutils-dev ca-certificates make git  \
+        xz-utils gcc pkg-config bison flex build-essential libgcc-8-dev \
+        libbpf-dev libdwarf-dev; fi
 COPY --from=builder /usr/local/go/bin/go-assert-boring.sh /usr/local/go/bin/go-assert-static.sh /usr/local/go/bin/go-build-static.sh /usr/local/go/bin/
 
 ### BEGIN K3S XTABLES ###
@@ -83,6 +89,22 @@ RUN install -D -s bin/flexvoldriver /usr/local/bin/flexvol/flexvoldriver
 FROM calico-node-builder AS calico_node
 ARG ARCH
 ARG TAG
+ARG KERNEL_REPO=git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+ARG BPF_TOOL_VERSION=5.3
+WORKDIR /bpftool
+# Build BPF tool
+RUN git clone --depth 1 -b ${BPF_TOOL_VERSION} ${KERNEL_REPO} && \
+    cd linux/tools/bpf/bpftool/ && \
+    sed -i '/CFLAGS += -O2/a CFLAGS += -static' Makefile && \
+    sed -i 's/LIBS = -lelf $(LIBBPF)/LIBS = -lelf -lz $(LIBBPF)/g' Makefile && \
+    printf 'feature-libbfd=0\nfeature-libelf=1\nfeature-bpf=1\nfeature-libelf-mmap=1' >> FEATURES_DUMP.bpftool && \
+    FEATURES_DUMP=`pwd`/FEATURES_DUMP.bpftool make -j `getconf _NPROCESSORS_ONLN` && \
+    strip bpftool && \
+    ldd bpftool 2>&1 | grep -q -e "Not a valid dynamic program" \
+        -e "not a dynamic executable" || \
+        ( echo "Error: bpftool is not statically linked"; false ) && \
+    mv bpftool /bpftool && \
+    rm -rf /tmp/linux
 RUN git clone --depth=1 https://github.com/projectcalico/calico.git $GOPATH/src/github.com/projectcalico/calico
 WORKDIR $GOPATH/src/github.com/projectcalico/calico
 RUN git fetch --all --tags --prune
@@ -102,7 +124,6 @@ RUN go-assert-static.sh bin/calico-node
 RUN go-assert-boring.sh bin/calico-node
 RUN install -s bin/calico-node /usr/local/bin
 ### END CALICO NODE #####
-
 
 ### BEGIN RUNIT ###
 # We need to build runit because there aren't any rpms for it in CentOS or ubi repositories.
@@ -134,26 +155,14 @@ COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/
 COPY --from=calico_node /usr/local/bin/      	/usr/bin/
 COPY --from=calico /usr/local/bin/calicoctl     /calicoctl
 COPY --from=calico_bird /bird*                  /usr/bin/
-COPY --from=calico/bpftool:v5.3-amd64 /bpftool  /usr/sbin/
+COPY --from=calico_node /bpftool                /usr/sbin/
 COPY --from=calico /usr/local/bin/              /usr/local/bin/
 COPY --from=calico /opt/cni/                    /opt/cni/
 COPY --from=cni	/opt/cni/                       /opt/cni/
 COPY --from=k3s_xtables /opt/xtables/bin/       /usr/sbin/
 COPY --from=runit /opt/local/command/           /usr/sbin/
 
-FROM scratch AS calico_rootfs_overlay_arm64
-COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/etc/       /etc/
-COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/licenses/  /licenses/
-COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/sbin/      /usr/sbin/
-COPY --from=calico_node /usr/local/bin/         /usr/bin/
-COPY --from=calico /usr/local/bin/calicoctl     /calicoctl
-COPY --from=calico_bird /bird*                  /usr/bin/
-COPY --from=calico/bpftool:v5.3-arm64 /bpftool  /usr/sbin/
-COPY --from=calico /usr/local/bin/              /usr/local/bin/
-COPY --from=calico /opt/cni/                    /opt/cni/
-COPY --from=cni /opt/cni/                       /opt/cni/
-COPY --from=k3s_xtables /opt/xtables/bin/       /usr/sbin/
-COPY --from=runit /opt/local/command/           /usr/sbin/
+FROM calico_rootfs_overlay_amd64 AS calico_rootfs_overlay_arm64
 
 FROM scratch AS calico_rootfs_overlay_s390x
 COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/etc/       /etc/

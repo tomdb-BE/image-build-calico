@@ -8,6 +8,7 @@ BUILD_META ?= -multiarch-build$(shell date +%Y%m%d)
 ORG ?= rancher
 UBI_IMAGE ?= registry.access.redhat.com/ubi8/ubi-minimal:latest
 GOLANG_VERSION ?= v1.17.6b7-multiarch
+BPF_TOOL_VERSION ?= v5.3
 GO_BORING ?= us-docker.pkg.dev/google.com/api-project-999119582588/go-boringcrypto/golang:1.17.5b7
 TAG ?= v3.22.0$(BUILD_META)
 
@@ -32,6 +33,7 @@ image-build:
                 --build-arg UBI_IMAGE=$(UBI_IMAGE) \
 		--build-arg K3S_ROOT_VERSION=$(K3S_ROOT_VERSION) \
                 --build-arg GO_BORING=$(GO_BORING) \
+                --build-arg BPF_TOOL_VERSION=$(BPF_TOOL_VERSION) \
 		--tag $(ORG)/hardened-calico:$(TAG) \
 		--tag $(ORG)/hardened-calico:$(TAG)-$(ARCH) \
 		.
