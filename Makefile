@@ -30,7 +30,7 @@ endif
 
 .PHONY: image-build
 image-build:
-	DOCKER_BUILDKIT=1 docker build --no-cache \
+	DOCKER_BUILDKIT=1 docker build \
 		--build-arg ARCH=$(ARCH) \
                 --build-arg CNI_IMAGE=$(ORG)/hardened-cni-plugins:$(CNI_PLUGINS_VERSION)$(BUILD_META) \
 		--build-arg TAG=$(TAG:$(BUILD_META)=) \

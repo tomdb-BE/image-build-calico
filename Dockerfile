@@ -151,31 +151,18 @@ RUN ./package/install
 FROM scratch AS calico_rootfs_overlay_amd64
 COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/etc/       /etc/
 COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/licenses/  /licenses/
-COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/sbin/      /usr/sbin/
-COPY --from=calico_node /usr/local/bin/      	/usr/bin/
+COPY --from=calico_node /usr/local/bin/calico-node                                         /usr/bin/
+COPY --from=calico_node /bpftool/bpftool                                                   /usr/sbin/
 COPY --from=calico /usr/local/bin/calicoctl     /calicoctl
 COPY --from=calico_bird /bird*                  /usr/bin/
-COPY --from=calico_node /bpftool                /usr/sbin/
-COPY --from=calico /usr/local/bin/              /usr/local/bin/
+COPY --from=calico /usr/local/bin/calico*       /usr/local/bin/
+COPY --from=calico /usr/local/bin/flexvol       /usr/local/bin/
 COPY --from=calico /opt/cni/                    /opt/cni/
 COPY --from=cni	/opt/cni/                       /opt/cni/
 COPY --from=k3s_xtables /opt/xtables/bin/       /usr/sbin/
 COPY --from=runit /opt/local/command/           /usr/sbin/
 
 FROM calico_rootfs_overlay_amd64 AS calico_rootfs_overlay_arm64
-
-FROM scratch AS calico_rootfs_overlay_s390x
-COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/etc/       /etc/
-COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/licenses/  /licenses/
-COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/sbin/      /usr/sbin/
-COPY --from=calico_node /usr/local/bin/         /usr/bin/
-COPY --from=calico /usr/local/bin/calicoctl     /calicoctl
-COPY --from=calico_bird /bird*                  /usr/bin/
-COPY --from=calico /usr/local/bin/              /usr/local/bin/
-COPY --from=calico /opt/cni/                    /opt/cni/
-COPY --from=cni /opt/cni/                       /opt/cni/
-COPY --from=k3s_xtables /opt/xtables/bin/       /usr/sbin/
-COPY --from=runit /opt/local/command/           /usr/sbin/
 
 FROM calico_rootfs_overlay_${ARCH} as calico_rootfs_overlay
 
