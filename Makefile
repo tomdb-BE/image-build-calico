@@ -9,7 +9,12 @@ ORG ?= rancher
 UBI_IMAGE ?= registry.access.redhat.com/ubi8/ubi-minimal:latest
 GOLANG_VERSION ?= v1.17.6b7-multiarch
 BPF_TOOL_VERSION ?= v5.3
-GO_BORING ?= us-docker.pkg.dev/google.com/api-project-999119582588/go-boringcrypto/golang:1.17.5b7
+
+GO_BORING = golang:1.17.6-buster
+ifeq ($(ARCH),amd64)
+GO_BORING = us-docker.pkg.dev/google.com/api-project-999119582588/go-boringcrypto/golang:1.17.5b7
+endif
+
 TAG ?= v3.22.0$(BUILD_META)
 
 K3S_ROOT_VERSION ?= v0.11.0
