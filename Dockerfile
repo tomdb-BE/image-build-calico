@@ -157,6 +157,7 @@ COPY --from=calico /usr/local/bin/calicoctl     /calicoctl
 COPY --from=calico_bird /bird*                  /usr/bin/
 COPY --from=calico /usr/local/bin/calico*       /usr/local/bin/
 COPY --from=calico /usr/local/bin/flexvol       /usr/local/bin/
+COPY --from=calico /usr/local/bin/flexvol.sh    /usr/local/bin/
 COPY --from=calico /opt/cni/                    /opt/cni/
 COPY --from=cni	/opt/cni/                       /opt/cni/
 COPY --from=k3s_xtables /opt/xtables/bin/       /usr/sbin/
