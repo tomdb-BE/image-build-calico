@@ -151,6 +151,7 @@ RUN ./package/install
 FROM scratch AS calico_rootfs_overlay_amd64
 COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/etc/       /etc/
 COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/licenses/  /licenses/
+COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/sbin/      /usr/sbin/
 COPY --from=calico_node /usr/local/bin/calico-node                                         /usr/bin/
 COPY --from=calico_node /bpftool/bpftool                                                   /usr/sbin/
 COPY --from=calico /usr/local/bin/calicoctl     /calicoctl
@@ -164,20 +165,15 @@ COPY --from=k3s_xtables /opt/xtables/bin/       /usr/sbin/
 COPY --from=runit /opt/local/command/           /usr/sbin/
 
 FROM calico_rootfs_overlay_amd64 AS calico_rootfs_overlay_arm64
+FROM calico_rootfs_overlay_${ARCH} AS calico_rootfs_overlay
 
-FROM calico_rootfs_overlay_${ARCH} as calico_rootfs_overlay
-
-FROM ubi AS ubi-updated
-RUN microdnf update -y
-
-FROM ubi-updated AS kubernetes
+FROM ubi AS hardened-calico
 ARG ARCH=amd64
 ARG TAG
 # As ubi8 does not have conntrack-tools, install from centos8 (method used by Calico-node).
 ADD https://raw.githubusercontent.com/projectcalico/calico/${TAG}/node/centos.repo /etc/yum.repos.d/
 RUN rm /etc/yum.repos.d/ubi.repo                                                                   && \
     if [ "${ARCH}" == "arm64" ]; then sed -i 's/x86_64/aarch64/' /etc/yum.repos.d/centos.repo; fi  && \
-    microdnf update -y                                                                             && \
     microdnf install --setopt=tsflags=nodocs                                                          \
     hostname                                                                                          \
     libpcap libmnl libnetfilter_conntrack                                                             \
@@ -191,4 +187,4 @@ COPY --from=calico_rootfs_overlay / /
 ENV PATH=$PATH:/opt/cni/bin
 RUN set -x \
  && test -e /opt/cni/bin/install \
- && ln -vs /opt/cni/bin/install /install-cni \
+ && ln -vs /opt/cni/bin/install /install-cni
