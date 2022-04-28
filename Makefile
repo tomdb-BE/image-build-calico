@@ -8,7 +8,7 @@ BUILD_META ?= -multiarch-build$(shell date +%Y%m%d)
 ORG ?= rancher
 UBI_IMAGE ?= registry.access.redhat.com/ubi8/ubi-minimal:latest
 GOLANG_VERSION ?= v1.18.1b7-multiarch
-BPF_TOOL_VERSION ?= v5.10
+BPF_TOOL_VERSION ?= v5.3
 
 GO_BORING = golang:1.18.1-buster
 ifeq ($(ARCH),amd64)
