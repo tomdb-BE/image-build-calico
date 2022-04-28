@@ -7,15 +7,15 @@ endif
 BUILD_META ?= -multiarch-build$(shell date +%Y%m%d)
 ORG ?= rancher
 UBI_IMAGE ?= registry.access.redhat.com/ubi8/ubi-minimal:latest
-GOLANG_VERSION ?= v1.17.6b7-multiarch
-BPF_TOOL_VERSION ?= v5.3
+GOLANG_VERSION ?= v1.18.1b7-multiarch
+BPF_TOOL_VERSION ?= v5.10
 
-GO_BORING = golang:1.17.6-buster
+GO_BORING = golang:1.18.1-buster
 ifeq ($(ARCH),amd64)
-GO_BORING = us-docker.pkg.dev/google.com/api-project-999119582588/go-boringcrypto/golang:1.17.5b7
+GO_BORING = us-docker.pkg.dev/google.com/api-project-999119582588/go-boringcrypto/golang:1.18.1b7
 endif
 
-TAG ?= v3.22.0$(BUILD_META)
+TAG ?= v3.22.2$(BUILD_META)
 
 K3S_ROOT_VERSION ?= v0.11.0
 CNI_PLUGINS_VERSION ?= v1.0.1
