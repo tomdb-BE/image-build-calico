@@ -22,14 +22,15 @@ endif
 
 .PHONY: image-build
 image-build:
-	DOCKER_BUILDKIT=1 docker build --no-cache \
-		--pull \
-		--build-arg ARCH=$(ARCH) \
+	DOCKER_BUILDKIT=1 docker build  --no-cache \
+                --build-arg ARCH=$(ARCH) \
 		--build-arg CNI_PLUGINS_VERSION=$(CNI_PLUGINS_VERSION) \
 		--build-arg TAG=$(TAG:$(BUILD_META)=) \
 		--build-arg K3S_ROOT_VERSION=$(K3S_ROOT_VERSION) \
+		--build-arg ORG=$(ORG) \
 		--tag $(ORG)/hardened-calico:$(TAG) \
 		--tag $(ORG)/hardened-calico:$(TAG)-$(ARCH) \
+		--target calico \
 		.
 
 .PHONY: image-push

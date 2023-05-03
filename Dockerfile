@@ -1,9 +1,10 @@
 ARG ARCH="amd64"
 ARG TAG="v3.25.0"
+ARG ORG=rancher
 ARG BCI_IMAGE=registry.suse.com/bci/bci-base:15.3.17.20.12
-ARG GO_IMAGE=rancher/hardened-build-base:v1.19.1b1
-ARG CNI_IMAGE=rancher/hardened-cni-plugins:v1.0.1-build20221011
-ARG GO_BORING=goboring/golang:1.16.7b7
+ARG GO_IMAGE=${ORG}/hardened-build-base:v1.20.3b1
+ARG CNI_IMAGE=${ORG}/hardened-cni-plugins:v1.0.1-build20230503
+ARG GO_BORING=library/golang:1.18.6
 # Not yet a 1.19.1 available
 ARG GOBORING_GOLANG_VERSION=1.18.6
 ARG GOBORING_BUILD=7
@@ -44,7 +45,23 @@ RUN cp -r /usr/local/boring/go/ /usr/local/go/
 COPY --from=builder /usr/local/go/bin/go-assert-boring.sh /usr/local/go/bin/go-assert-static.sh /usr/local/go/bin/go-build-static.sh /usr/local/go/bin/
 COPY --from=builder $GOPATH/src/github.com/projectcalico/calico $GOPATH/src/github.com/projectcalico/calico
 
-# We need a different image for s390x because goboring installation is not supported
+# Image for projectcalico/node - arm64
+FROM ${GO_BORING} AS calico-node-builder-arm64
+ARG ARCH
+ARG GOBORING_GOLANG_VERSION
+ARG GOBORING_BUILD
+RUN apt -y update && apt -y upgrade && apt install -y file libbpf-dev gcc build-essential libelf-dev
+ADD https://go-boringcrypto.storage.googleapis.com/go${GOBORING_GOLANG_VERSION}b${GOBORING_BUILD}.src.tar.gz /usr/local/boring.tgz
+WORKDIR /usr/local/boring
+RUN tar xzf ../boring.tgz
+WORKDIR /usr/local/boring/go/src
+RUN ./make.bash
+RUN rm -fr /usr/local/go/
+RUN cp -r /usr/local/boring/go/ /usr/local/go/
+COPY --from=builder /usr/local/go/bin/go-assert-boring.sh /usr/local/go/bin/go-assert-static.sh /usr/local/go/bin/go-build-static.sh /usr/local/go/bin/
+COPY --from=builder $GOPATH/src/github.com/projectcalico/calico $GOPATH/src/github.com/projectcalico/calico
+
+# Image for projectcalico/node. Because of libbpf-dev and libelf-dev dependencies we can't use Alpine. Not needed in s390x
 FROM builder AS calico-node-builder-s390x
 COPY --from=builder /usr/local/go/bin/go-assert-boring.sh /usr/local/go/bin/go-assert-static.sh /usr/local/go/bin/go-build-static.sh /usr/local/go/bin/
 COPY --from=builder $GOPATH/src/github.com/projectcalico/calico $GOPATH/src/github.com/projectcalico/calico
@@ -69,7 +86,7 @@ RUN GO_LDFLAGS="-linkmode=external \
     -X github.com/projectcalico/calico/calicoctl/calicoctl/commands.GIT_REVISION=$(git rev-parse --short HEAD) \
     " go-build-static.sh -gcflags=-trimpath=${GOPATH}/src -o bin/calicoctl ./calicoctl/calicoctl.go
 RUN go-assert-static.sh bin/*
-RUN if [ "${ARCH}" = "amd64" ]; then go-assert-boring.sh bin/*; fi
+RUN if [ "${ARCH}" = "amd64" ]  || [ "${ARCH}" = "arm64" ]; then go-assert-boring.sh bin/*; fi
 RUN install -s bin/* /usr/local/bin
 RUN calicoctl --version
 ### END CALICOCTL #####
@@ -88,7 +105,7 @@ RUN go-build-static.sh -gcflags=-trimpath=${GOPATH}/src -o bin/calico ./cmd/cali
 RUN go-build-static.sh -gcflags=-trimpath=${GOPATH}/src -o bin/calico-ipam ./cmd/calico
 RUN go-build-static.sh -gcflags=-trimpath=${GOPATH}/src -o bin/install ./cmd/calico
 RUN go-assert-static.sh bin/*
-RUN if [ "${ARCH}" = "amd64" ]; then go-assert-boring.sh bin/*; fi
+RUN if [ "${ARCH}" = "amd64" ]  || [ "${ARCH}" = "arm64" ]; then go-assert-boring.sh bin/*; fi
 RUN mkdir -vp /opt/cni/bin
 RUN install -s bin/* /opt/cni/bin/
 ### END CALICO CNI #####
@@ -105,7 +122,8 @@ ENV CGO_LDFLAGS="-L/go/src/github.com/projectcalico/calico/felix/bpf-gpl/include
 ENV CGO_CFLAGS="-I/go/src/github.com/projectcalico/calico/felix//bpf-gpl/include/libbpf/src -I/go/src/github.com/projectcalico/calico/felix//bpf-gpl"
 ENV CGO_ENABLED=1
 RUN if [ "${ARCH}" = "amd64" ]; then make -j 16 -C ../felix/bpf-gpl/include/libbpf/src BUILD_STATIC_ONLY=1; fi
-RUN if [ "${ARCH}" = "amd64" ]; then \
+RUN if [ "${ARCH}" = "arm64" ]; then make -j 2 -C ../felix/bpf-gpl/include/libbpf/src BUILD_STATIC_ONLY=1; fi
+RUN if [ "${ARCH}" = "amd64" ]  || [ "${ARCH}" = "arm64" ]; then \
     go build -ldflags "-linkmode=external -X github.com/projectcalico/calico/node/pkg/lifecycle/startup.VERSION=${TAG} \
     -X github.com/projectcalico/calico/node/buildinfo.GitRevision=$(git rev-parse HEAD) \
     -X github.com/projectcalico/calico/node/buildinfo.GitVersion=$(git describe --tags --always) \
@@ -154,6 +172,7 @@ RUN install -D -s bin/check-status /usr/local/bin/
 ### BEGIN RUNIT ###
 # We need to build runit because there aren't any rpms for it in CentOS or BCI repositories.
 FROM centos:7 AS runit-amd64
+FROM centos:7 AS runit-arm64
 FROM clefos:7 AS runit-s390x
 FROM runit-${ARCH} AS runit
 ARG RUNIT_VER=2.1.2
@@ -185,6 +204,21 @@ COPY --from=cni	/opt/cni/                            /opt/cni/
 COPY --from=k3s_xtables /opt/xtables/bin/            /usr/sbin/
 COPY --from=runit /opt/local/command/                /usr/sbin/
 
+FROM scratch AS calico_rootfs_overlay_arm64
+COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/etc/       /etc/
+COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/licenses/  /licenses/
+COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/sbin/      /usr/sbin/
+COPY --from=calico_node /usr/local/bin/              /usr/bin/
+COPY --from=calico_ctl /usr/local/bin/calicoctl      /calicoctl
+COPY --from=calico_bird /bird*                       /usr/bin/
+COPY --from=calico/bpftool:v5.3-arm64 /bpftool       /usr/sbin/
+COPY --from=calico_pod2daemon /usr/local/bin/        /usr/local/bin/
+COPY --from=calico_kubecontrollers /usr/local/bin/   /usr/bin/
+COPY --from=calico_cni /opt/cni/                     /opt/cni/
+COPY --from=cni /opt/cni/                            /opt/cni/
+COPY --from=k3s_xtables /opt/xtables/bin/            /usr/sbin/
+COPY --from=runit /opt/local/command/                /usr/sbin/
+
 FROM scratch AS calico_rootfs_overlay_s390x
 COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/etc/       /etc/
 COPY --from=calico_node /go/src/github.com/projectcalico/calico/node/filesystem/licenses/  /licenses/
@@ -201,7 +235,8 @@ COPY --from=runit /opt/local/command/                /usr/sbin/
 
 FROM calico_rootfs_overlay_${ARCH} as calico_rootfs_overlay
 
-FROM bci
+FROM bci as calico
+ARG ARCH
 RUN zypper update -y && \
     zypper install -y  \
     hostname \
